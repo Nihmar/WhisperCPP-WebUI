@@ -1,0 +1,4 @@
+{
+  "whisper_server_command": "whisper-server --model ~/.local/share/whisper-models/ggml-large-v3-turbo.bin --host 0.0.0.0 --port 8080 --language it --threads 8",
+  "whisper_url": "http://127.0.0.1:8080/inference"
+}

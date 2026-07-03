@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="it" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Whisper Chat</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+:root, [data-theme="light"]{
+  --bg:#f0f2f5; --surface:#fff; --surface-hover:#f5f5f5;
+  --accent:#4caf50; --accent-hover:#43a047;
+  --danger:#e53935; --blue:#2196f3;
+  --text:#1a1a1a; --text-secondary:#666; --text-on-accent:#fff;
+  --border:#e0e0e0; --border-light:#eee;
+  --msg-user:#dcf8c6; --msg-bot:#fff;
+  --shadow:0 2px 8px rgba(0,0,0,.08);
+  --btn-action-bg:#f5f5f5; --btn-action-hover:#e8e8e8;
+  --modal-overlay:rgba(0,0,0,.4);
+}
+[data-theme="dark"]{
+  --bg:#1a1a2e; --surface:#16213e; --surface-hover:#1a2744;
+  --accent:#66bb6a; --accent-hover:#57a75b;
+  --danger:#ef5350; --blue:#42a5f5;
+  --text:#e0e0e0; --text-secondary:#9e9e9e; --text-on-accent:#fff;
+  --border:#2a2a4a; --border-light:#222244;
+  --msg-user:#1b3a1b; --msg-bot:#16213e;
+  --shadow:0 2px 8px rgba(0,0,0,.3);
+  --btn-action-bg:#1a2744; --btn-action-hover:#223355;
+  --modal-overlay:rgba(0,0,0,.6);
+}
+
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+  background:var(--bg); display:flex;
+  height:100dvh;
+  color:var(--text); overflow:hidden;
+}
+
+/* ── SVG icon helper ── */
+svg.icon{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+
+/* ── SIDEBAR ── */
+#sidebar{
+  width:260px; background:var(--surface); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; flex-shrink:0;
+  transition:margin-left .3s ease, width .3s ease;
+}
+#sidebar-header{
+  padding:14px 16px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:10px;
+}
+#sidebar-header h2{font-size:15px;font-weight:600;flex:1}
+.icon-btn{
+  border:none;background:none;cursor:pointer;color:var(--text-secondary);
+  width:32px;height:32px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s;font-size:16px;
+}
+.icon-btn:hover{background:var(--btn-action-hover);color:var(--text)}
+#newChatBtn{background:var(--accent);color:var(--text-on-accent);border-radius:50%}
+#newChatBtn:hover{background:var(--accent-hover)}
+#chatList{flex:1;overflow-y:auto;padding:8px}
+.chat-item{
+  padding:10px 12px;border-radius:8px;cursor:pointer;
+  display:flex;align-items:center;gap:8px;margin-bottom:2px;
+  transition:background .1s;
+}
+.chat-item:hover{background:var(--surface-hover)}
+.chat-item.active{background:var(--accent);color:var(--text-on-accent)}
+.chat-item .chat-name{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-item .chat-delete{
+  opacity:.5;border:none;background:none;cursor:pointer;
+  padding:4px;border-radius:4px;transition:opacity .15s;
+  color:inherit;display:flex;align-items:center;
+}
+.chat-item .chat-delete:hover{opacity:1}
+.chat-item input{
+  flex:1;font-size:14px;border:1px solid var(--accent);border-radius:4px;
+  padding:2px 6px;outline:none;background:var(--surface);color:var(--text);
+}
+
+/* sidebar overlay (mobile) */
+#sidebarOverlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40;
+}
+#sidebarOverlay.open{display:block}
+
+/* ── MAIN ── */
+#main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+
+/* top bar */
+#topbar{
+  padding:10px 20px;border-bottom:1px solid var(--border);
+  background:var(--surface);display:flex;align-items:center;gap:8px;
+}
+#topbar-title{flex:1;font-size:15px;font-weight:500}
+
+/* chat area */
+#chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px;min-height:0}
+#chat:empty::after{
+  content:"Nessuna chat selezionata";color:var(--text-secondary);
+  margin:auto;font-style:italic;
+}
+
+/* messages */
+.msg{
+  max-width:75%;padding:12px 16px;border-radius:12px;
+  line-height:1.5;font-size:14px;position:relative;
+}
+.msg.user{background:var(--msg-user);align-self:flex-end;border-bottom-right-radius:4px}
+.msg.bot{background:var(--msg-bot);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px}
+.msg.bot.err{background:#3e1a1a;border-color:#5c2020;color:var(--danger)}
+[data-theme="light"] .msg.bot.err{background:#fee;border-color:#fcc}
+.msg audio{display:block;margin-top:8px;width:100%;height:36px}
+.msg .text{white-space:pre-wrap;word-break:break-word}
+.msg .msg-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.msg-btn{
+  border:none;background:var(--btn-action-bg);border-radius:6px;
+  padding:5px 10px;font-size:12px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:5px;
+  color:var(--text-secondary);transition:background .15s;
+}
+.msg-btn:hover{background:var(--btn-action-hover);color:var(--text)}
+
+/* bottom controls */
+#bottom{
+  padding:0 20px;border-top:1px solid var(--border);
+  background:var(--surface);display:flex;flex-direction:column;align-items:center;
+  justify-content:center;position:relative;height:110px;flex-shrink:0;
+}
+#controls{width:100%;max-width:600px;position:relative;height:72px}
+#status{position:absolute;bottom:4px;left:0;right:0;text-align:center;color:var(--text-secondary);font-style:italic;font-size:13px;height:18px;pointer-events:none}
+.btn-circle{
+  border:none;cursor:pointer;color:#fff;
+  outline:0;-webkit-tap-highlight-color:transparent;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .2s,filter .2s,background .2s,opacity .2s;
+  position:absolute;top:50%;transform:translateY(-50%);
+}
+.btn-circle:focus,
+.btn-circle:focus-visible,
+.btn-circle:active{outline:0;box-shadow:none}
+.btn-circle:hover{filter:brightness(1.1);box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.btn-circle:active{transform:translateY(-50%) scale(.96)}
+.btn-circle.disabled{opacity:.4;pointer-events:none}
+#recordBtn{
+  width:72px;height:72px;border-radius:50%;
+  background:var(--accent);left:calc(50% - 36px);
+}
+#recordBtn.recording{background:var(--danger);animation:pulse 1.5s infinite}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(229,57,53,.4)}
+  70%{box-shadow:0 0 0 12px rgba(229,57,53,0)}
+  100%{box-shadow:0 0 0 0 rgba(229,57,53,0)}
+}
+#uploadBtn{
+  width:48px;height:48px;border-radius:50%;
+  background:var(--blue);right:20px;
+}
+#fileInput{display:none}
+
+/* export modal */
+#modal-overlay{
+  display:none;position:fixed;inset:0;background:var(--modal-overlay);
+  z-index:100;align-items:center;justify-content:center;
+}
+#modal-overlay.open{display:flex}
+#modal{
+  background:var(--surface);border-radius:16px;padding:24px;
+  width:90%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.25);
+}
+#modal h3{margin-bottom:12px;font-size:16px}
+#modal textarea{
+  width:100%;height:100px;border:1px solid var(--border);border-radius:8px;
+  padding:8px;font-size:13px;resize:vertical;font-family:inherit;
+  background:var(--surface);color:var(--text);
+}
+#modal .modal-btns{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+#modal .modal-btns button{
+  padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:14px;
+}
+#modal .btn-cancel{background:var(--btn-action-bg);color:var(--text)}
+#modal .btn-cancel:hover{background:var(--btn-action-hover)}
+#modal .btn-export{background:var(--accent);color:var(--text-on-accent)}
+#modal .btn-export:hover{background:var(--accent-hover)}
+
+/* ── BURGER (mobile) ── */
+#burgerBtn{display:none}
+
+/* ── MOBILE ── */
+@media(max-width:700px){
+  #sidebar{
+    position:fixed;top:0;left:0;bottom:0;z-index:50;
+    width:280px;margin-left:-280px;
+  }
+  #sidebar.open{margin-left:0}
+  #burgerBtn{display:flex}
+  #topbar{padding:10px 12px}
+}
+</style>
+</head>
+<body>
+
+<div id="sidebarOverlay"></div>
+
+<aside id="sidebar">
+  <div id="sidebar-header">
+    <h2>Chat</h2>
+    <button class="icon-btn" id="themeBtn" title="Tema"></button>
+    <button class="icon-btn" id="newChatBtn" title="Nuova chat"></button>
+  </div>
+  <div id="chatList"></div>
+</aside>
+
+<div id="main">
+  <div id="topbar">
+    <button class="icon-btn" id="burgerBtn" title="Menu"></button>
+    <span id="topbar-title">Whisper Chat</span>
+    <button class="icon-btn" id="exportBtn" title="Esporta ZIP"></button>
+    <button class="icon-btn" id="renameBtn" title="Rinomina"></button>
+  </div>
+  <div id="chat"></div>
+  <div id="bottom">
+    <div id="controls">
+      <button id="recordBtn" class="btn-circle" title="Registra"></button>
+      <label for="fileInput" id="uploadBtn" class="btn-circle" title="Allega file"></label>
+      <input type="file" id="fileInput" accept="audio/*" />
+    </div>
+    <div id="status"></div>
+  </div>
+</div>
+
+<div id="modal-overlay">
+  <div id="modal">
+    <h3>Esporta chat</h3>
+    <label style="font-size:13px;color:var(--text-secondary)">Nota (opzionale)</label>
+    <textarea id="exportNote" placeholder="Aggiungi una nota..."></textarea>
+    <div class="modal-btns">
+      <button class="btn-cancel" id="modalCancel">Annulla</button>
+      <button class="btn-export" id="modalExport">Esporta ZIP</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function(){
+
+// ── SVG ICONS ──
+const I = {
+  mic:    '<svg class="icon" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>',
+  stop:   '<svg class="icon" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>',
+  plus:   '<svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  copy:   '<svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  check:  '<svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+  download:'<svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  share:  '<svg class="icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
+  export: '<svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+  pencil: '<svg class="icon" viewBox="0 0 24 24"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
+  x:      '<svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  sun:    '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+  moon:   '<svg class="icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  burger: '<svg class="icon" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>',
+};
+
+function icon(name){ return I[name] || '' }
+
+// ── THEME ──
+const html = document.documentElement;
+let theme = localStorage.getItem('wtheme') || 'light';
+html.dataset.theme = theme;
+
+function updateThemeBtn(){ themeBtn.innerHTML = theme === 'dark' ? I.sun : I.moon }
+function toggleTheme(){
+  theme = theme === 'dark' ? 'light' : 'dark';
+  html.dataset.theme = theme;
+  localStorage.setItem('wtheme', theme);
+  updateThemeBtn();
+}
+
+// ── STATE ──
+let chats = JSON.parse(localStorage.getItem('wchats') || '[]');
+let activeId = localStorage.getItem('wchat_active') || null;
+const blobs = {};
+
+function save(){
+  localStorage.setItem('wchats', JSON.stringify(chats));
+  localStorage.setItem('wchat_active', activeId || '');
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7) }
+
+// ── DOM ──
+const chatList   = document.getElementById('chatList');
+const chatDiv    = document.getElementById('chat');
+const topTitle   = document.getElementById('topbar-title');
+const recordBtn  = document.getElementById('recordBtn');
+const uploadBtn  = document.getElementById('uploadBtn');
+const fileInput  = document.getElementById('fileInput');
+const statusDiv  = document.getElementById('status');
+const newChatBtn = document.getElementById('newChatBtn');
+const themeBtn   = document.getElementById('themeBtn');
+const exportBtn  = document.getElementById('exportBtn');
+const renameBtn  = document.getElementById('renameBtn');
+const modalOverlay = document.getElementById('modal-overlay');
+const modalCancel = document.getElementById('modalCancel');
+const modalExport = document.getElementById('modalExport');
+const exportNote  = document.getElementById('exportNote');
+
+newChatBtn.innerHTML = I.plus;
+themeBtn.innerHTML   = I.moon;
+exportBtn.innerHTML  = I.export;
+renameBtn.innerHTML  = I.pencil;
+recordBtn.innerHTML  = I.mic;
+uploadBtn.innerHTML  = I.plus;
+updateThemeBtn();
+
+themeBtn.onclick = toggleTheme;
+
+// ── SIDEBAR TOGGLE (mobile) ──
+const sidebar    = document.getElementById('sidebar');
+const overlay    = document.getElementById('sidebarOverlay');
+const burgerBtn  = document.getElementById('burgerBtn');
+burgerBtn.innerHTML = I.burger;
+
+function isMobile(){ return window.innerWidth <= 700 }
+let sidebarOpen = !isMobile();
+
+function openSidebar(){
+  sidebarOpen = true;
+  sidebar.classList.add('open');
+  if(isMobile()) overlay.classList.add('open');
+}
+function closeSidebar(){
+  sidebarOpen = false;
+  sidebar.classList.remove('open');
+  overlay.classList.remove('open');
+}
+function toggleSidebar(){ sidebarOpen ? closeSidebar() : openSidebar() }
+
+burgerBtn.onclick = toggleSidebar;
+overlay.onclick = closeSidebar;
+
+window.addEventListener('resize', () => {
+  if(!isMobile()){
+    sidebar.classList.add('open'); overlay.classList.remove('open');
+    sidebarOpen = true;
+  } else if(sidebarOpen){
+    sidebar.classList.add('open'); overlay.classList.add('open');
+  } else {
+    sidebar.classList.remove('open'); overlay.classList.remove('open');
+  }
+});
+
+// ── SIDEBAR ──
+function renderSidebar(){
+  chatList.innerHTML = '';
+  chats.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'chat-item' + (c.id === activeId ? ' active' : '');
+    div.innerHTML = `<span class="chat-name">${esc(c.name)}</span>`;
+
+    const del = document.createElement('button');
+    del.className = 'chat-delete';
+    del.innerHTML = I.x;
+    del.onclick = e => { e.stopPropagation(); deleteChat(c.id) };
+    div.appendChild(del);
+
+    div.onclick = () => switchChat(c.id);
+    div.ondblclick = e => { e.stopPropagation(); startRename(c.id, div) };
+    chatList.appendChild(div);
+  });
+}
+
+function esc(s){ const d = document.createElement('div'); d.textContent = s; return d.innerHTML }
+
+function createChat(){
+  const c = { id: uid(), name: 'Nuova chat', messages: [] };
+  chats.unshift(c); blobs[c.id] = {};
+  activeId = c.id; save(); renderSidebar(); renderChat();
+  if(isMobile()) closeSidebar();
+}
+function deleteChat(id){
+  chats = chats.filter(c => c.id !== id); delete blobs[id];
+  if(activeId === id) activeId = chats[0]?.id || null;
+  save(); renderSidebar(); renderChat();
+}
+function switchChat(id){
+  activeId = id; save(); renderSidebar(); renderChat();
+  if(isMobile()) closeSidebar();
+}
+
+function startRename(id, div){
+  const chat = chats.find(c => c.id === id);
+  if(!chat) return;
+  const input = document.createElement('input');
+  input.value = chat.name;
+  div.querySelector('.chat-name').replaceWith(input);
+  input.focus(); input.select();
+  const done = () => { chat.name = input.value.trim() || chat.name; save(); renderSidebar(); renderChat() };
+  input.onblur = done;
+  input.onkeydown = e => { if(e.key==='Enter') done(); if(e.key==='Escape') renderSidebar() };
+}
+function renameActive(){
+  const items = chatList.querySelectorAll('.chat-item');
+  items.forEach((item, i) => { if(chats[i]?.id === activeId) startRename(activeId, item) });
+}
+
+// ── MESSAGES ──
+function renderChat(){
+  chatDiv.innerHTML = '';
+  const chat = chats.find(c => c.id === activeId);
+  topTitle.textContent = chat ? chat.name : 'Whisper Chat';
+  if(!chat) return;
+  chat.messages.forEach((m, i) => m.role === 'user' ? addUserMsg(m, i) : addBotMsg(m, i));
+  scrollBottom();
+}
+
+function addUserMsg(m){
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  const audio = document.createElement('audio');
+  audio.controls = true; audio.src = m.audioUrl;
+  div.appendChild(audio);
+  const act = document.createElement('div'); act.className = 'msg-actions';
+  act.appendChild(mkBtn(I.download, 'Salva', () => dlBlob(m.blob, m.filename || 'audio.webm')));
+  act.appendChild(mkBtn(I.share, 'Condividi', () => shBlob(m.blob, m.filename || 'audio.webm', 'Audio')));
+  div.appendChild(act);
+  chatDiv.appendChild(div);
+}
+
+function addBotMsg(m, idx){
+  const div = document.createElement('div');
+  div.className = 'msg bot' + (m.error ? ' err' : '');
+  const txt = document.createElement('div'); txt.className = 'text'; txt.textContent = m.text;
+  div.appendChild(txt);
+  if(m.audioUrl){ const a = document.createElement('audio'); a.controls = true; a.src = m.audioUrl; div.appendChild(a) }
+  const act = document.createElement('div'); act.className = 'msg-actions';
+  act.appendChild(mkBtn(I.copy, 'Copia', () => cpText(m.text, act)));
+  if(m.blob){
+    act.appendChild(mkBtn(I.download, 'Salva audio', () => dlBlob(m.blob, 'whisper_'+idx+'.webm')));
+    act.appendChild(mkBtn(I.share, 'Condividi audio', () => shBlob(m.blob, 'whisper_'+idx+'.webm', m.text)));
+  }
+  div.appendChild(act);
+  chatDiv.appendChild(div);
+}
+
+function mkBtn(svg, label, fn){
+  const b = document.createElement('button'); b.className = 'msg-btn';
+  b.innerHTML = svg + ' ' + label; b.onclick = fn; return b;
+}
+
+function cpText(text, btn){
+  navigator.clipboard.writeText(text).then(() => {
+    const h = btn.innerHTML; btn.innerHTML = I.check + ' Copiato';
+    setTimeout(() => btn.innerHTML = h, 1200);
+  });
+}
+function dlBlob(blob, name){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+async function shBlob(blob, name, text){
+  if(navigator.share && navigator.canShare){
+    const f = new File([blob], name, { type: blob.type });
+    try { await navigator.share({ files: [f], text }) } catch(e){}
+  } else dlBlob(blob, name);
+}
+function scrollBottom(){ chatDiv.scrollTop = chatDiv.scrollHeight }
+
+// ── RECORDING ──
+let mediaRecorder, audioChunks = [], recording = false, currentStream = null;
+
+recordBtn.onclick = async () => {
+  if(!recording){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      alert('Microfono non disponibile.\n\nSu rete locale serve HTTPS.\nApri con https://<IP>:8000 oppure da localhost.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      currentStream = stream;
+      mediaRecorder = new MediaRecorder(stream); audioChunks = [];
+      mediaRecorder.ondataavailable = e => { if(e.data.size > 0) audioChunks.push(e.data) };
+      mediaRecorder.onstop = () => send(audioChunks, 'registrazione.webm');
+      mediaRecorder.start(); recording = true;
+      recordBtn.classList.add('recording'); recordBtn.innerHTML = I.stop;
+      statusDiv.textContent = 'Registrazione in corso...'; setEnabled(false, true);
+    } catch(e){ alert('Microfono non disponibile: ' + e.message) }
+  } else {
+    mediaRecorder.stop(); recording = false;
+    recordBtn.classList.remove('recording'); recordBtn.innerHTML = I.mic;
+    statusDiv.textContent = 'Elaborazione...';
+  }
+};
+
+fileInput.onchange = e => { const f = e.target.files[0]; if(f){ send([f], f.name); fileInput.value = '' } };
+
+async function send(chunks, filename){
+  if(!activeId) createChat()
+  const chat = chats.find(c => c.id === activeId);
+  const blob = new Blob(chunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+  const audioUrl = URL.createObjectURL(blob);
+  const idx = chat.messages.length;
+  chat.messages.push({ role: 'user', audioUrl, blob, filename });
+  if(!blobs[activeId]) blobs[activeId] = {};
+  blobs[activeId]['user_'+idx] = blob;
+  save(); addUserMsg(chat.messages[chat.messages.length-1]); scrollBottom();
+
+  statusDiv.textContent = 'Trascrizione in corso...'; setEnabled(false);
+  try {
+    const fd = new FormData(); fd.append('audio', blob, filename);
+    const resp = await fetch('/transcribe', { method: 'POST', body: fd });
+    const data = await resp.json();
+    chat.messages.push(!resp.ok || data.error
+      ? { role:'bot', text:'Errore: '+(data.error||'Risposta non valida'), error:true }
+      : { role:'bot', text:data.text||'(trascrizione vuota)' });
+  } catch(e){ chat.messages.push({ role:'bot', text:'Errore di rete: '+e.message, error:true }) }
+
+  save(); renderChat(); statusDiv.textContent = ''; setEnabled(true);
+}
+
+function setEnabled(on, keepRec){
+  recordBtn.disabled = !on && !keepRec;
+  uploadBtn.classList.toggle('disabled', !on);
+  fileInput.disabled = !on;
+}
+
+// ── EXPORT ──
+exportBtn.onclick = () => { if(activeId){ modalOverlay.classList.add('open'); exportNote.value=''; exportNote.focus() } };
+modalCancel.onclick = () => modalOverlay.classList.remove('open');
+modalOverlay.onclick = e => { if(e.target===modalOverlay) modalOverlay.classList.remove('open') };
+
+modalExport.onclick = async () => {
+  const chat = chats.find(c => c.id === activeId);
+  if(!chat) return;
+  modalOverlay.classList.remove('open');
+  const zip = new JSZip();
+  let md = '# ' + chat.name + '\n\n';
+  const note = exportNote.value.trim();
+  if(note) md += '> ' + note + '\n\n';
+  md += '---\n\n';
+  const af = zip.folder('audio'); let n = 0;
+  for(const m of chat.messages){
+    if(m.role==='user'){
+      n++; const ext = m.blob?.type?.split('/')[1]||'webm';
+      const fn = 'user_'+n+'.'+ext;
+      if(m.blob) af.file(fn, m.blob);
+      md += `## Utente\n\n![Audio registrato](audio/${fn})\n\n---\n\n`;
+    } else {
+      md += '## Whisper\n\n'+m.text+'\n\n';
+      if(m.blob){ n++; const fn='whisper_'+n+'.'+(m.blob.type?.split('/')[1]||'webm'); af.file(fn,m.blob); md+=`![Audio trascritto](audio/${fn})\n\n` }
+      md += '---\n\n';
+    }
+  }
+  zip.file('chat.md', md);
+  dlBlob(await zip.generateAsync({type:'blob'}), chat.name.replace(/[^a-z0-9]/gi,'_')+'.zip');
+};
+
+// ── INIT ──
+newChatBtn.onclick = createChat;
+renameBtn.onclick = renameActive;
+chats.forEach(c => { if(!blobs[c.id]) blobs[c.id] = {} });
+
+// auto-select first chat if none selected
+if(!activeId || !chats.find(c => c.id === activeId)){
+  activeId = chats[0]?.id || null;
+  save();
+}
+
+renderSidebar();
+renderChat();
+
+// initial sidebar state
+if(isMobile()){
+  sidebar.classList.remove('open'); overlay.classList.remove('open');
+  sidebarOpen = false;
+} else {
+  sidebar.classList.add('open');
+  sidebarOpen = true;
+}
+})();
+</script>
+</body>
+</html>

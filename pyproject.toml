@@ -1,0 +1,13 @@
+[project]
+name = "whispercpp-webui"
+version = "0.1.0"
+description = "A web UI for whisper.cpp"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+whispercpp-webui = "server:main"
